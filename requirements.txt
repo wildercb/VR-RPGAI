@@ -1,0 +1,44 @@
+# Core Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.8.0
+pydantic-settings>=2.3.0
+
+# Database
+sqlalchemy>=2.0.31
+asyncpg>=0.29.0
+alembic>=1.13.2
+pgvector>=0.2.4
+psycopg[pool]>=3.1.0
+
+# Memory Management
+mem0ai>=0.1.0
+
+# Embeddings and Vector Search
+numpy>=1.24.0
+
+# WebSocket
+websockets>=12.0
+
+# LLM Providers (agnostic)
+httpx>=0.27.0
+aiohttp>=3.9.5
+ollama>=0.4.0
+
+# TTS (Piper - free, local, fast)
+# We'll use piper-tts via subprocess
+
+# Authentication & Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.9
+
+# Utilities
+python-dotenv>=1.0.0
+loguru>=0.7.2
+pyyaml>=6.0.1
+
+# Testing
+pytest>=8.2.0
+pytest-asyncio>=0.23.7
+httpx>=0.27.0

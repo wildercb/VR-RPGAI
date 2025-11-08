@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rpgai-postgres
+    environment:
+      POSTGRES_USER: rpgai
+      POSTGRES_PASSWORD: rpgai_password
+      POSTGRES_DB: rpgai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rpgai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: rpgai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rpgai-backend
+    ports:
+      - "4020:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://rpgai:rpgai_password@postgres:5432/rpgai
+      - DATABASE_HOST=postgres
+      - DATABASE_USER=rpgai
+      - DATABASE_PASSWORD=rpgai_password
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=rpgai
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - DEBUG=true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./app:/app/app
+      - ./static:/app/static
+      - ./tts_models:/app/tts_models
+      - ./audio_cache:/app/audio_cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:
+  redis_data:
