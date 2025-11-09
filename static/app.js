@@ -706,7 +706,11 @@ class RPGAIClient {
 
             this.mediaRecorder.onstop = async () => {
                 // Create audio blob from recorded chunks
-                const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
+                // MediaRecorder typically produces webm or ogg
+                const mimeType = this.mediaRecorder.mimeType || 'audio/webm';
+                const audioBlob = new Blob(this.audioChunks, { type: mimeType });
+
+                console.log('Recorded audio:', { type: mimeType, size: audioBlob.size });
 
                 // Stop all tracks to release microphone
                 stream.getTracks().forEach(track => track.stop());
@@ -756,9 +760,18 @@ class RPGAIClient {
             statusEl.textContent = '⏳ Transcribing...';
             statusEl.style.color = '#f59e0b';
 
+            // Determine file extension based on mime type
+            const mimeType = audioBlob.type;
+            let filename = 'recording.webm';  // Default
+            if (mimeType.includes('wav')) filename = 'recording.wav';
+            else if (mimeType.includes('ogg')) filename = 'recording.ogg';
+            else if (mimeType.includes('mp4')) filename = 'recording.mp4';
+
             // Create FormData and append audio file
             const formData = new FormData();
-            formData.append('audio', audioBlob, 'recording.wav');
+            formData.append('audio', audioBlob, filename);
+
+            console.log('Sending transcribe request:', { filename, type: mimeType, size: audioBlob.size });
 
             // Send to transcription endpoint
             const response = await fetch(`${this.apiUrl}/api/chat/transcribe`, {

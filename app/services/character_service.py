@@ -94,7 +94,7 @@ async def generate_character_from_prompt(
             system_prompt=system_prompt,
             personality_summary=personality_summary,
             llm_provider=llm_provider or "ollama",
-            llm_model=llm_model or "llama3.1",
+            llm_model=llm_model or "granite4:micro",
         )
 
         db.add(character)

@@ -55,7 +55,7 @@ async def synthesize_speech_post(tts_request: TTSRequest):
 
 @router.post("/transcribe", response_model=TranscriptionResponse)
 async def transcribe_audio(
-    audio: UploadFile = File(..., description="Audio file to transcribe (WAV, MP3, etc.)")
+    audio: UploadFile = File(..., description="Audio file to transcribe (WAV, MP3, etc.)", media_type="audio/*")
 ):
     """
     🎮 UNREAL-FRIENDLY STT ENDPOINT 🎮
@@ -106,6 +106,10 @@ async def transcribe_audio(
     - Keep audio clips under 30 seconds for fast transcription
     - Use base-int8 model (default) for speed, or larger models for accuracy
     """
+    from loguru import logger
+
+    logger.info(f"Transcribe request received - filename: {audio.filename}, content_type: {audio.content_type}, size: {audio.size if hasattr(audio, 'size') else 'unknown'}")
+
     if not settings.STT_ENABLED:
         raise HTTPException(status_code=503, detail="STT is not enabled")
 
@@ -128,6 +132,12 @@ async def transcribe_audio(
                 audio_format = "flac"
             elif audio.filename.endswith(".ogg"):
                 audio_format = "ogg"
+            elif audio.filename.endswith(".webm"):
+                audio_format = "webm"
+            elif audio.filename.endswith(".m4a") or audio.filename.endswith(".mp4"):
+                audio_format = "mp4"
+
+        logger.info(f"Transcribing audio: format={audio_format}, size={len(audio_data)} bytes")
 
         # Transcribe audio
         transcript = await stt_service.transcribe(audio_data, audio_format)

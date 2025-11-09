@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Character Room - RPGAI Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* UI Overlay */
+        .ui-panel {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        /* Character Selection Panel */
+        #character-panel {
+            top: 20px;
+            left: 20px;
+            width: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        #character-panel h2 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+
+        .character-item {
+            padding: 12px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .character-item:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .character-item.selected {
+            background: #667eea;
+            color: white;
+            border-color: #764ba2;
+        }
+
+        .character-name {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .character-prompt {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            background: #764ba2;
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Room Customization Panel */
+        #room-panel {
+            top: 20px;
+            right: 20px;
+            width: 280px;
+        }
+
+        #room-panel h2 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #555;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .control-group input[type="color"] {
+            width: 100%;
+            height: 40px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .control-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        /* Chat Panel */
+        #chat-panel {
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        #chat-messages {
+            height: 200px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .message {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            max-width: 80%;
+        }
+
+        .message.user {
+            background: #667eea;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.character {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .message-sender {
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 4px;
+            opacity: 0.8;
+        }
+
+        #chat-input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        #chat-input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        #voice-btn {
+            padding: 12px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        #voice-btn:hover {
+            background: #218838;
+        }
+
+        #voice-btn.recording {
+            background: #dc3545;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Instructions */
+        #instructions {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            max-width: 500px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        #instructions.hidden {
+            display: none;
+        }
+
+        #instructions h1 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        #instructions ul {
+            text-align: left;
+            margin-bottom: 20px;
+            line-height: 1.8;
+        }
+
+        #instructions li {
+            margin-bottom: 8px;
+        }
+
+        /* Status Indicator */
+        #status {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            display: none;
+        }
+
+        #status.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <!-- Instructions -->
+    <div id="instructions">
+        <h1>🎮 Interactive AI Character Room</h1>
+        <p>Welcome! This demo showcases RPGAI's voice-enabled AI characters in a 3D environment.</p>
+        <ul>
+            <li>👥 <strong>Add multiple characters</strong> - Click to add up to 8 characters to the room</li>
+            <li>🎨 <strong>Customize the room</strong> - Change colors, lighting, add furniture</li>
+            <li>💬 <strong>Chat with them</strong> - Select a character to chat via text or voice</li>
+            <li>🔊 <strong>Hear responses</strong> - Characters speak with unique voices and animations!</li>
+            <li>🚶 <strong>Watch them move</strong> - Each character wanders autonomously</li>
+            <li>💚 <strong>Speech indicators</strong> - See a green ring when characters are talking</li>
+        </ul>
+        <button class="btn" onclick="startDemo()">Start Demo</button>
+    </div>
+
+    <!-- Status Indicator -->
+    <div id="status"></div>
+
+    <!-- Character Selection Panel -->
+    <div id="character-panel" class="ui-panel" style="display: none;">
+        <h2>🤖 Characters</h2>
+        <div style="font-size: 12px; color: #666; margin-bottom: 10px;">
+            Click to add to room (max 8)
+        </div>
+        <div id="character-list"></div>
+        <button class="btn" onclick="loadCharacters()">Refresh</button>
+        <button class="btn" onclick="createNewCharacter()">Create New</button>
+        <button class="btn" style="background: #dc3545;" onclick="clearRoom()">Clear Room</button>
+    </div>
+
+    <!-- Room Customization Panel -->
+    <div id="room-panel" class="ui-panel" style="display: none;">
+        <h2>🎨 Customize Room</h2>
+
+        <div class="control-group">
+            <label>Floor Color</label>
+            <input type="color" id="floor-color" value="#8B7355">
+        </div>
+
+        <div class="control-group">
+            <label>Wall Color</label>
+            <input type="color" id="wall-color" value="#F5DEB3">
+        </div>
+
+        <div class="control-group">
+            <label>Lighting</label>
+            <select id="lighting">
+                <option value="bright">Bright</option>
+                <option value="normal" selected>Normal</option>
+                <option value="dim">Dim</option>
+                <option value="dark">Dark</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Add Furniture</label>
+            <button class="btn" onclick="addFurniture('chair')">Add Chair</button>
+            <button class="btn" onclick="addFurniture('table')">Add Table</button>
+            <button class="btn" onclick="addFurniture('plant')">Add Plant</button>
+        </div>
+
+        <button class="btn" onclick="resetRoom()">Reset Room</button>
+    </div>
+
+    <!-- Chat Panel -->
+    <div id="chat-panel" class="ui-panel" style="display: none;">
+        <div id="active-character" style="font-size: 13px; color: #666; margin-bottom: 8px; padding: 8px; background: #f0f0f0; border-radius: 6px; display: none;">
+            Chatting with: <strong id="active-character-name">None</strong>
+        </div>
+        <div id="chat-messages"></div>
+        <div id="chat-input-container">
+            <input type="text" id="chat-input" placeholder="Select a character to chat..." onkeypress="handleKeyPress(event)" disabled>
+            <button id="voice-btn" onclick="toggleVoiceInput()" disabled>🎤 Voice</button>
+            <button class="btn" onclick="sendMessage()" disabled>Send</button>
+        </div>
+        <button class="btn" style="background: #6f42c1; margin-top: 10px;" onclick="makeCharactersInteract()" id="interact-btn" disabled>Make Characters Talk</button>
+    </div>
+
+    <!-- Character Creation Modal -->
+    <div id="create-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+        <div class="ui-panel" style="width: 500px; max-width: 90%; position: relative;">
+            <h2>🎭 Create New Character</h2>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">Describe your character concept and AI will generate the full personality!</p>
+            <div class="control-group">
+                <label>Character Concept</label>
+                <textarea id="new-char-prompt" placeholder="Examples:
+• A wise medieval wizard
+• Sarcastic space pirate captain
+• Friendly coffee shop barista
+• Grumpy detective from the 1940s
+• Enthusiastic AI researcher" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; min-height: 120px; resize: vertical; font-family: inherit;"></textarea>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button class="btn" onclick="confirmCreateCharacter()" style="flex: 1;">✨ Generate Character</button>
+                <button class="btn" onclick="closeCreateModal()" style="flex: 1; background: #6c757d;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="/static/demo-room.js?v=10"></script>
+</body>
+</html>

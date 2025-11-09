@@ -81,6 +81,15 @@ async def root():
     }
 
 
+@app.get("/demo-room.html")
+async def demo_room():
+    """Serve the interactive 3D demo room."""
+    demo_path = os.path.join(static_path, "demo-room.html")
+    if os.path.exists(demo_path):
+        return FileResponse(demo_path)
+    return {"detail": "Demo room not found"}
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""

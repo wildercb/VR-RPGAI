@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # LLM Providers
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "llama3.1"
+    OLLAMA_MODEL: str = "granite4:micro"
 
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_MODEL: str = "meta-llama/llama-3.1-8b-instruct:free"

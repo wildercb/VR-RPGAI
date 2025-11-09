@@ -61,7 +61,18 @@ The web interface allows you to:
 - View what characters remember about you
 - Test the full API without code
 
-### 4. Install Ollama Models (if using Ollama)
+### 4. Try the Interactive 3D Demo
+
+Experience AI characters in a 3D environment: **http://localhost:4020/demo-room.html**
+
+The interactive demo features:
+- 3D room with customizable colors and furniture
+- AI characters that autonomously move around
+- Text and voice chat with characters
+- Character voice responses with animations
+- See [DEMO_ROOM.md](DEMO_ROOM.md) for details
+
+### 5. Install Ollama Models (if using Ollama)
 
 ```bash
 # Pull a model (if using local Ollama setup)
@@ -495,6 +506,7 @@ See [.env.example](.env.example) for all options.
 ## Documentation
 
 - [API Reference](API_REFERENCE.md) - Complete API documentation with examples
+- [Deployment Guide](DEPLOYMENT_GUIDE.md) - Deploy to production, data isolation, backups
 - [Unreal Integration](UNREAL_INTEGRATION.md) - Integrate with Unreal Engine
 - [Voice Chat Integration](VOICE_CHAT_INTEGRATION.md) - Complete voice chat workflow
 - [TTS Quick Start](TTS_QUICK_START.md) - Text-to-speech guide
@@ -502,6 +514,16 @@ See [.env.example](.env.example) for all options.
 - [Game Context Guide](GAME_CONTEXT_GUIDE.md) - Pass game state to characters
 - [Memory System](MEMORY_SYSTEM.md) - How character memory works
 - [Web UI Guide](WEB_UI_GUIDE.md) - Using the web interface
+
+## Data Privacy & Isolation
+
+**Your data stays yours!** When you share this code:
+- ✅ Your characters and conversations remain on your machine (in Docker volumes)
+- ✅ Others get a fresh, empty database when they clone the repo
+- ✅ Each deployment is completely isolated
+- ✅ Database files are automatically excluded from git
+
+See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for details on data management, backups, and production deployment.
 
 ## License
 
