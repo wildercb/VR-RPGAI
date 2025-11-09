@@ -7,6 +7,7 @@ from app.models import Character, Conversation, Message, CharacterDocument
 from app.providers.manager import llm_manager
 from app.providers.base import Message as LLMMessage
 from app.services.memory_service import memory_service
+from app.services.tts_service import tts_service
 from app.config import settings
 from loguru import logger
 import uuid
@@ -49,25 +50,30 @@ async def send_message_with_memory(
     user_id: str,
     user_message: str,
     db: AsyncSession,
-) -> tuple[str, Conversation]:
+    game_context: Optional[Dict] = None,
+    from_character_id: Optional[uuid.UUID] = None,
+) -> tuple[str, Conversation, Optional[str]]:
     """
-    Send a message with Mem0-powered semantic memory retrieval.
+    Send a message with Mem0-powered semantic memory retrieval and TTS audio generation.
 
     Flow:
     1. Retrieve relevant memories about user (semantic search)
     2. Get recent conversation messages (last 5)
-    3. Build enriched context with memories + documents
+    3. Build enriched context with memories + documents + game state
     4. Generate response
-    5. Save message and extract new memories asynchronously
+    5. Generate TTS audio for response
+    6. Save message and extract new memories asynchronously
 
     Args:
         character_id: ID of the character
         user_id: ID of the user
         user_message: User's message
         db: Database session
+        game_context: Optional game state context (location, weather, events, etc.)
+        from_character_id: Optional ID of character sending the message (for NPC-to-NPC)
 
     Returns:
-        Tuple of (assistant_response, conversation)
+        Tuple of (assistant_response, conversation, audio_file_path)
     """
     # Get the character with documents
     result = await db.execute(
@@ -142,6 +148,42 @@ async def send_message_with_memory(
             memory_text = mem.get('memory', mem.get('data', ''))
             system_content += f"- {memory_text}\n"
 
+    # Add game context if provided
+    if game_context:
+        system_content += "\n\n**Current Game State:**\n"
+        if game_context.get('location'):
+            system_content += f"Location: {game_context['location']}\n"
+        if game_context.get('weather'):
+            system_content += f"Weather: {game_context['weather']}\n"
+        if game_context.get('time_of_day'):
+            system_content += f"Time: {game_context['time_of_day']}\n"
+        if game_context.get('npc_health') is not None:
+            system_content += f"Your health: {game_context['npc_health']}%\n"
+        if game_context.get('player_health') is not None:
+            system_content += f"Player health: {game_context['player_health']}%\n"
+        if game_context.get('player_reputation') is not None:
+            system_content += f"Player reputation: {game_context['player_reputation']}\n"
+        if game_context.get('npc_mood'):
+            system_content += f"Your mood: {game_context['npc_mood']}\n"
+        if game_context.get('recent_event'):
+            system_content += f"Recent event: {game_context['recent_event']}\n"
+        if game_context.get('nearby_npcs'):
+            system_content += f"Nearby NPCs: {', '.join(game_context['nearby_npcs'])}\n"
+        if game_context.get('custom_data'):
+            for key, value in game_context['custom_data'].items():
+                system_content += f"{key}: {value}\n"
+
+    # Handle character-to-character communication
+    if from_character_id:
+        # Get the sending character's name
+        result = await db.execute(
+            select(Character).where(Character.id == from_character_id)
+        )
+        from_character = result.scalar_one_or_none()
+        if from_character:
+            system_content += f"\n\n**Note:** This message is from {from_character.name}, another character in the world. Respond as if speaking to them directly.\n"
+            user_id = f"character_{from_character_id}"  # Use character ID as "user" for multi-agent
+
     llm_messages.append(LLMMessage(role="system", content=system_content))
 
     # Add recent conversation history (only last 5 messages)
@@ -187,7 +229,26 @@ async def send_message_with_memory(
 
         await db.commit()
 
-        # Step 5: Extract and save new memories asynchronously (non-blocking)
+        # Step 5: Generate TTS audio if enabled
+        audio_file = None
+        audio_duration_ms = None
+        if settings.TTS_ENABLED:
+            try:
+                # Use character's voice_id if available, otherwise use default
+                voice = character.voice_id if hasattr(character, 'voice_id') and character.voice_id else None
+                audio_path = await tts_service.synthesize(
+                    text=assistant_message,
+                    voice=voice,
+                    use_cache=True
+                )
+                if audio_path:
+                    # Store relative path for API response
+                    audio_file = audio_path.replace('/app/', '')
+                    logger.info(f"Generated TTS audio: {audio_file}")
+            except Exception as e:
+                logger.warning(f"TTS generation failed (non-critical): {e}")
+
+        # Step 6: Extract and save new memories asynchronously (non-blocking)
         if settings.MEM0_ENABLE_MEMORY:
             try:
                 _extract_memories_from_exchange(
@@ -202,7 +263,7 @@ async def send_message_with_memory(
 
         logger.info(f"Conversation {conversation.id}: Response generated with {len(character_memories)} memories")
 
-        return assistant_message, conversation
+        return assistant_message, conversation, audio_file
 
     except Exception as e:
         logger.error(f"Error generating response: {e}")

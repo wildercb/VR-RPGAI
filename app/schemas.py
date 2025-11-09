@@ -53,10 +53,28 @@ class DocumentResponse(BaseModel):
 
 
 # Chat schemas
+class GameContext(BaseModel):
+    """Game state context for enriched NPC responses."""
+
+    location: Optional[str] = None
+    weather: Optional[str] = None
+    time_of_day: Optional[str] = None
+    player_health: Optional[int] = None
+    player_reputation: Optional[int] = None
+    npc_health: Optional[int] = None
+    npc_mood: Optional[str] = None
+    recent_event: Optional[str] = None
+    nearby_npcs: Optional[list[str]] = None
+    custom_data: Optional[dict] = None
+
+
 class ChatRequest(BaseModel):
     """Request to send a message to a character."""
 
+    character_id: Optional[UUID4] = None  # Target character (required for /send endpoint)
     message: str
+    context: Optional[GameContext] = None
+    from_character_id: Optional[UUID4] = None  # For character-to-character chat
 
 
 class ChatResponse(BaseModel):
@@ -66,6 +84,8 @@ class ChatResponse(BaseModel):
     message: str
     audio_file: Optional[str] = None
     audio_duration_ms: Optional[int] = None
+    emotion: Optional[str] = None
+    suggested_actions: Optional[list[dict]] = None
 
 
 # Message history

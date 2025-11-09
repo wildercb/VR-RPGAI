@@ -40,6 +40,17 @@
             color: #666;
         }
 
+        .tts-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+            background: #10b981;
+            color: white;
+        }
+
         .config-section {
             background: white;
             padding: 20px;
@@ -346,8 +357,12 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎮 RPGAI Character Testing Interface</h1>
-            <p>Create and interact with AI characters powered by semantic memory</p>
+            <h1>🎮 RPGAI Character Testing Interface <span class="tts-status">🔊 TTS</span> <span class="tts-status">🎤 STT</span></h1>
+            <p>Create and interact with AI characters with voice input/output! Use the microphone button to talk to characters.</p>
+            <button id="testTTSBtn" style="margin-top: 10px; padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+                🔊 Test TTS Now
+            </button>
+            <span id="ttsTestResult" style="margin-left: 10px; color: #10b981; font-weight: 600;"></span>
         </div>
 
         <div class="config-section">
@@ -410,10 +425,91 @@
 
                 <div class="chat-input">
                     <div id="chatError"></div>
+
+                    <!-- Game Context Controls -->
+                    <details style="margin-bottom: 15px; background: #f5f5f5; padding: 10px; border-radius: 5px;">
+                        <summary style="cursor: pointer; font-weight: 600; color: #667eea;">🎮 Game Context (Optional)</summary>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                            <div>
+                                <label style="font-size: 12px; color: #666;">Location</label>
+                                <input type="text" id="gameLocation" placeholder="e.g., Village Square" style="width: 100%; padding: 5px; font-size: 12px;">
+                            </div>
+                            <div>
+                                <label style="font-size: 12px; color: #666;">Weather</label>
+                                <select id="gameWeather" style="width: 100%; padding: 5px; font-size: 12px;">
+                                    <option value="">None</option>
+                                    <option value="sunny">Sunny</option>
+                                    <option value="raining">Raining</option>
+                                    <option value="stormy">Stormy</option>
+                                    <option value="snowing">Snowing</option>
+                                    <option value="foggy">Foggy</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 12px; color: #666;">Time of Day</label>
+                                <select id="gameTime" style="width: 100%; padding: 5px; font-size: 12px;">
+                                    <option value="">None</option>
+                                    <option value="dawn">Dawn</option>
+                                    <option value="morning">Morning</option>
+                                    <option value="noon">Noon</option>
+                                    <option value="afternoon">Afternoon</option>
+                                    <option value="evening">Evening</option>
+                                    <option value="night">Night</option>
+                                    <option value="midnight">Midnight</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 12px; color: #666;">NPC Mood</label>
+                                <select id="npcMood" style="width: 100%; padding: 5px; font-size: 12px;">
+                                    <option value="">None</option>
+                                    <option value="happy">Happy</option>
+                                    <option value="neutral">Neutral</option>
+                                    <option value="sad">Sad</option>
+                                    <option value="angry">Angry</option>
+                                    <option value="fearful">Fearful</option>
+                                    <option value="excited">Excited</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 12px; color: #666;">Player Health (%)</label>
+                                <input type="number" id="playerHealth" min="0" max="100" placeholder="100" style="width: 100%; padding: 5px; font-size: 12px;">
+                            </div>
+                            <div>
+                                <label style="font-size: 12px; color: #666;">NPC Health (%)</label>
+                                <input type="number" id="npcHealth" min="0" max="100" placeholder="100" style="width: 100%; padding: 5px; font-size: 12px;">
+                            </div>
+                            <div style="grid-column: 1 / -1;">
+                                <label style="font-size: 12px; color: #666;">Recent Event</label>
+                                <input type="text" id="recentEvent" placeholder="e.g., player_attacked_merchant" style="width: 100%; padding: 5px; font-size: 12px;">
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Character-to-Character Chat -->
+                    <details style="margin-bottom: 15px; background: #f5f5f5; padding: 10px; border-radius: 5px;">
+                        <summary style="cursor: pointer; font-weight: 600; color: #764ba2;">👥 Multi-Agent Chat</summary>
+                        <div style="margin-top: 10px;">
+                            <label style="font-size: 12px; color: #666; font-weight: bold;">Have a character respond:</label>
+                            <div style="display: flex; gap: 10px; margin-top: 8px; align-items: center;">
+                                <select id="respondingCharacterSelect" style="flex: 1; padding: 8px;">
+                                    <option value="">-- Select Character --</option>
+                                </select>
+                                <button id="characterRespondBtn" style="padding: 8px 16px; background: #764ba2; white-space: nowrap;">
+                                    💬 Respond
+                                </button>
+                            </div>
+                            <p style="font-size: 11px; color: #999; margin-top: 8px;">
+                                Character will automatically respond to the current conversation based on what they see.
+                            </p>
+                        </div>
+                    </details>
+
                     <div class="input-group">
-                        <input type="text" id="messageInput" placeholder="Type your message..." disabled>
+                        <input type="text" id="messageInput" placeholder="Type your message or use voice..." disabled>
+                        <button id="voiceRecordBtn" style="background: #667eea; min-width: 140px;">🎤 Record Voice</button>
                         <button id="sendMessageBtn" disabled>Send</button>
                     </div>
+                    <div id="voiceRecordStatus" style="margin-top: 10px; font-size: 14px; font-weight: 600;"></div>
                 </div>
             </div>
         </div>

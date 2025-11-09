@@ -34,7 +34,7 @@ class MemoryService:
             "llm": {
                 "provider": settings.MEM0_LLM_PROVIDER,
                 "config": {
-                    "model": settings.MEM0_LLM_MODEL,
+                    "model": settings.MEM0_MODEL,
                     "temperature": 0.1,
                     "max_tokens": 2000,
                 }

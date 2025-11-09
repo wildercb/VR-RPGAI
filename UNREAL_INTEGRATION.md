@@ -1,6 +1,20 @@
-## Unreal Engine Integration Guide
+# Unreal Engine VR Integration Guide
 
-Complete guide for integrating RPGAI characters into your Unreal Engine VR project.
+Complete guide for integrating RPGAI's semantic memory-powered AI characters into your Unreal Engine VR game.
+
+## What This System Does
+
+Your Unreal VR game connects to RPGAI via HTTP REST API. Characters remember conversations, learn about players, and adapt their responses over time using Mem0 semantic memory.
+
+**Key Features:**
+- Characters remember player preferences, facts, and conversation history
+- Multi-character memory sharing (one character can know what another learned)
+- Dynamic model selection (use any Ollama or OpenRouter model)
+- Document uploads (give NPCs specialized knowledge)
+- Text-to-Speech (Piper) for natural voice responses
+- Speech-to-Text (Whisper) for voice input
+- Game context integration (location, inventory, quest state, etc.)
+- Simple REST API (works with Blueprint or C++)
 
 ## Table of Contents
 
@@ -17,11 +31,16 @@ Complete guide for integrating RPGAI characters into your Unreal Engine VR proje
 ### 1. Start RPGAI Server
 
 ```bash
-cd RPGAI
+cd /Users/wilder/dev/RPGAI
 ./start.sh
 ```
 
-Server will be available at `http://localhost:8000`
+Server will be available at `http://localhost:4020`
+
+**Important URLs:**
+- Web UI: http://localhost:4020
+- API Docs: http://localhost:4020/docs
+- Health Check: http://localhost:4020/health
 
 ### 2. Test from Unreal
 
@@ -52,7 +71,7 @@ Event BeginPlay
   ↓
 Create VaRest Request
   ↓
-Set URL: http://localhost:8000/api/characters
+Set URL: http://localhost:4020/api/characters
 Set Verb: POST
 Set Header: X-User-ID = {PlayerID}
 Set Content Type: application/json
@@ -74,18 +93,24 @@ On Player Input Text Entered
   ↓
 Create VaRest Request
   ↓
-Set URL: http://localhost:8000/api/chat/{CharacterID}
+Set URL: http://localhost:4020/api/chat/send
 Set Verb: POST
 Set Header: X-User-ID = {PlayerID}
 Set Content Type: application/json
 Set Request Object:
   {
-    "message": {InputText}
+    "character_id": {CharacterID},
+    "message": {InputText},
+    "game_context": {
+      "location": "Blacksmith Shop",
+      "player_level": 10
+    }
   }
   ↓
 On Request Complete (Success)
   ↓
-Get JSON Field: "message" → Display in dialogue widget
+Get JSON Field: "response" → Display in dialogue widget
+Get JSON Field: "audio_file" → Download and play TTS audio
 Get JSON Field: "conversation_id" → Save for history
 ```
 
@@ -105,7 +130,7 @@ Create new Blueprint Function Library: `BP_RPGAIHelpers`
 Inputs:
 - User ID (String)
 - Character Prompt (String)
-- Server URL (String) = "http://localhost:8000"
+- Server URL (String) = "http://localhost:4020"
 
 Outputs:
 - Success (Boolean)
@@ -186,7 +211,7 @@ public:
 
     // Configuration
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RPGAI")
-    FString ServerURL = TEXT("http://localhost:8000");
+    FString ServerURL = TEXT("http://localhost:4020");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RPGAI")
     FString UserID = TEXT("player1");
@@ -300,13 +325,20 @@ void UCharacterAgentComponent::SendMessage(const FString& Message)
     }
 
     TSharedRef<IHttpRequest> Request = CreateRequest(
-        FString::Printf(TEXT("/api/chat/%s"), *CharacterID),
+        TEXT("/api/chat/send"),
         TEXT("POST")
     );
 
-    // Create JSON body
+    // Create JSON body with game context
     TSharedPtr<FJsonObject> JsonObject = MakeShareable(new FJsonObject());
+    JsonObject->SetStringField(TEXT("character_id"), CharacterID);
     JsonObject->SetStringField(TEXT("message"), Message);
+
+    // Add game context
+    TSharedPtr<FJsonObject> GameContext = MakeShareable(new FJsonObject());
+    GameContext->SetStringField(TEXT("location"), TEXT("Village Square"));
+    GameContext->SetNumberField(TEXT("player_level"), 10);
+    JsonObject->SetObjectField(TEXT("game_context"), GameContext);
 
     FString JsonBody;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonBody);
@@ -333,8 +365,18 @@ void UCharacterAgentComponent::OnSendMessageResponse(FHttpRequestPtr Request, FH
 
     if (FJsonSerializer::Deserialize(Reader, JsonObject))
     {
-        FString ResponseMessage = JsonObject->GetStringField(TEXT("message"));
+        FString ResponseMessage = JsonObject->GetStringField(TEXT("response"));
+        FString AudioFile = JsonObject->GetStringField(TEXT("audio_file")); // TTS audio path
+
         UE_LOG(LogTemp, Log, TEXT("Response: %s"), *ResponseMessage);
+        UE_LOG(LogTemp, Log, TEXT("Audio: %s"), *AudioFile);
+
+        // Download and play audio if available
+        if (!AudioFile.IsEmpty())
+        {
+            DownloadAndPlayAudio(AudioFile);
+        }
+
         OnMessageReceived.Broadcast(true, ResponseMessage);
     }
     else
@@ -615,11 +657,12 @@ for (auto& NPC : TavernNPCs)
 
 ```cpp
 // Check health endpoint first
-FString HealthURL = TEXT("http://localhost:8000/health");
+FString HealthURL = TEXT("http://localhost:4020/health");
 // If unreachable, check:
-// 1. Is Docker running?
-// 2. Is RPGAI server started?
-// 3. Is firewall blocking port 8000?
+// 1. Is Docker running? (docker ps)
+// 2. Is RPGAI server started? (./start.sh)
+// 3. Is firewall blocking port 4020?
+// 4. Check logs: docker-compose logs backend
 ```
 
 ### Slow responses?
@@ -636,11 +679,106 @@ FString HealthURL = TEXT("http://localhost:8000/health");
 
 ---
 
+## Voice Integration
+
+### Text-to-Speech (Playing Character Responses)
+
+Character chat responses now include an `audio_file` field with the TTS audio path. Download and play it:
+
+```cpp
+void UCharacterAgentComponent::DownloadAndPlayAudio(const FString& AudioPath)
+{
+    // Full URL: http://localhost:4020/audio/character_id_response.wav
+    FString AudioURL = ServerURL + AudioPath;
+
+    TSharedRef<IHttpRequest> Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(AudioURL);
+    Request->SetVerb(TEXT("GET"));
+    Request->OnProcessRequestComplete().BindLambda(
+        [this](FHttpRequestPtr Req, FHttpResponsePtr Res, bool bSuccess)
+        {
+            if (bSuccess && Res.IsValid())
+            {
+                // Get WAV data
+                TArray<uint8> AudioData = Res->GetContent();
+
+                // Create USoundWave from raw data
+                USoundWave* SoundWave = CreateSoundWaveFromData(AudioData);
+
+                // Play audio
+                if (SoundWave)
+                {
+                    UGameplayStatics::PlaySound2D(GetWorld(), SoundWave);
+                }
+            }
+        });
+    Request->ProcessRequest();
+}
+```
+
+### Speech-to-Text (Voice Input)
+
+Send recorded voice to STT endpoint:
+
+```cpp
+void UCharacterAgentComponent::TranscribeVoiceInput(const TArray<uint8>& AudioData)
+{
+    TSharedRef<IHttpRequest> Request = CreateRequest(TEXT("/api/chat/transcribe"), TEXT("POST"));
+
+    // Create multipart form data
+    FString Boundary = FString::Printf(TEXT("----Boundary%d"), FMath::Rand());
+    Request->SetHeader(TEXT("Content-Type"),
+        FString::Printf(TEXT("multipart/form-data; boundary=%s"), *Boundary));
+
+    // Build form body
+    TArray<uint8> FormData;
+    FString FormHeader = FString::Printf(
+        TEXT("--%s\r\nContent-Disposition: form-data; name=\"audio\"; filename=\"voice.wav\"\r\nContent-Type: audio/wav\r\n\r\n"),
+        *Boundary
+    );
+    FormData.Append((uint8*)TCHAR_TO_UTF8(*FormHeader), FormHeader.Len());
+    FormData.Append(AudioData);
+
+    FString FormFooter = FString::Printf(TEXT("\r\n--%s--\r\n"), *Boundary);
+    FormData.Append((uint8*)TCHAR_TO_UTF8(*FormFooter), FormFooter.Len());
+
+    Request->SetContent(FormData);
+    Request->OnProcessRequestComplete().BindLambda(
+        [this](FHttpRequestPtr Req, FHttpResponsePtr Res, bool bSuccess)
+        {
+            if (bSuccess && Res.IsValid())
+            {
+                // Parse {"text": "transcribed speech"}
+                TSharedPtr<FJsonObject> JsonObject;
+                TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Res->GetContentAsString());
+
+                if (FJsonSerializer::Deserialize(Reader, JsonObject))
+                {
+                    FString TranscribedText = JsonObject->GetStringField(TEXT("text"));
+
+                    // Send transcribed text to character
+                    SendMessage(TranscribedText);
+                }
+            }
+        });
+    Request->ProcessRequest();
+}
+```
+
+**Complete Voice Chat Flow:**
+1. Player speaks → Record audio
+2. POST to `/api/chat/transcribe` → Get text
+3. POST to `/api/chat/send` with text → Get response + audio
+4. Play TTS audio response
+
+See [VOICE_CHAT_INTEGRATION.md](VOICE_CHAT_INTEGRATION.md) and [UNREAL_TTS_INTEGRATION.md](UNREAL_TTS_INTEGRATION.md) for complete examples.
+
 ## Next Steps
 
-- Add TTS integration for voice output
-- Implement WebSocket for real-time streaming responses
-- Add character emotion/animation hints
-- Create character behavior trees based on AI responses
+- ✅ TTS integration complete
+- ✅ STT integration complete
+- [ ] Implement WebSocket for real-time streaming responses
+- [ ] Add character emotion/animation hints
+- [ ] Create character behavior trees based on AI responses
 
 For more information, see main [README.md](README.md)

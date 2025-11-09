@@ -26,7 +26,7 @@ aiohttp>=3.9.5
 ollama>=0.4.0
 
 # TTS (Piper - free, local, fast)
-# We'll use piper-tts via subprocess
+wyoming>=1.5.3
 
 # Authentication & Security
 python-jose[cryptography]>=3.3.0

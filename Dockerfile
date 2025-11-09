@@ -2,12 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for Piper TTS and PostgreSQL
+# Install system dependencies for Piper TTS, FFmpeg, and PostgreSQL
 RUN apt-get update && apt-get install -y \
     wget \
     libsndfile1 \
     espeak-ng \
     postgresql-client \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Piper TTS

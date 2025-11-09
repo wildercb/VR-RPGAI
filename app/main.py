@@ -57,6 +57,15 @@ static_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 if os.path.exists(static_path):
     app.mount("/static", StaticFiles(directory=static_path), name="static")
 
+# Mount audio cache for TTS files
+audio_cache_path = settings.AUDIO_CACHE_PATH
+if os.path.exists(audio_cache_path):
+    app.mount("/audio_cache", StaticFiles(directory=audio_cache_path), name="audio_cache")
+else:
+    # Create audio cache directory if it doesn't exist
+    os.makedirs(audio_cache_path, exist_ok=True)
+    app.mount("/audio_cache", StaticFiles(directory=audio_cache_path), name="audio_cache")
+
 
 @app.get("/")
 async def root():

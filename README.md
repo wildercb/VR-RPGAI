@@ -8,7 +8,11 @@ Create dynamic, evolving AI characters with simple prompts. Perfect for VR NPCs,
 - **Semantic Memory (Mem0)**: Characters remember and learn from every conversation
 - **LLM Agnostic**: Supports Ollama (local/free) and OpenRouter (cloud)
 - **Document Knowledge**: Upload documents for specialized character knowledge
-- **Web UI**: Built-in testing interface for character creation and chat
+- **Text-to-Speech (Piper)**: Natural voice synthesis with 20+ voice options
+- **Speech-to-Text (Whisper)**: Local voice transcription supporting multiple audio formats
+- **Universal Audio Support**: Automatic FFmpeg conversion for any audio format (WAV, MP3, WebM, OGG, etc.)
+- **Game Context Integration**: Pass game state (location, inventory, quest progress) for contextual responses
+- **Web UI**: Built-in testing interface for character creation, chat, and voice interaction
 - **Easy Unreal Integration**: Simple REST API ready for VR/game engines
 
 ## Quick Start
@@ -42,35 +46,41 @@ OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
 docker-compose up -d
 
 # Check health
-curl http://localhost:8000/health
+curl http://localhost:4020/health
 ```
 
 ### 3. Access the Web UI
 
-Open your browser to **http://localhost:8000**
+Open your browser to **http://localhost:4020**
 
 The web interface allows you to:
 - Create characters from prompts
-- Chat with characters in real-time
+- Chat with characters in real-time (text or voice)
+- Record voice messages and see automatic transcription
+- Hear character responses with natural TTS voices
 - View what characters remember about you
 - Test the full API without code
 
 ### 4. Install Ollama Models (if using Ollama)
 
 ```bash
-# Pull a model
-docker exec -it rpgai-ollama ollama pull llama3.1
+# Pull a model (if using local Ollama setup)
+ollama pull llama3.1
 
 # Or a smaller, faster model
-docker exec -it rpgai-ollama ollama pull phi3:mini
+ollama pull phi3:mini
+
+# Note: By default, the system connects to Ollama on your host machine (http://host.docker.internal:11434)
 ```
 
 ## API Usage
 
+For complete API documentation with Unreal C++, Python, and cURL examples, see [API_REFERENCE.md](API_REFERENCE.md).
+
 ### Create a Character
 
 ```bash
-curl -X POST http://localhost:8000/api/characters \
+curl -X POST http://localhost:4020/api/characters \
   -H "Content-Type: application/json" \
   -H "X-User-ID: user123" \
   -d '{
@@ -96,7 +106,7 @@ curl -X POST http://localhost:8000/api/characters \
 ### List Your Characters
 
 ```bash
-curl http://localhost:8000/api/characters \
+curl http://localhost:4020/api/characters \
   -H "X-User-ID: user123"
 ```
 
@@ -105,7 +115,7 @@ curl http://localhost:8000/api/characters \
 Give your character specialized knowledge:
 
 ```bash
-curl -X POST http://localhost:8000/api/documents/550e8400-e29b-41d4-a716-446655440000 \
+curl -X POST http://localhost:4020/api/documents/550e8400-e29b-41d4-a716-446655440000 \
   -H "Content-Type: application/json" \
   -H "X-User-ID: user123" \
   -d '{
@@ -115,14 +125,19 @@ curl -X POST http://localhost:8000/api/documents/550e8400-e29b-41d4-a716-4466554
   }'
 ```
 
-### Chat with Character
+### Chat with Character (Text)
 
 ```bash
-curl -X POST http://localhost:8000/api/chat/550e8400-e29b-41d4-a716-446655440000 \
+curl -X POST http://localhost:4020/api/chat/550e8400-e29b-41d4-a716-446655440000 \
   -H "Content-Type: application/json" \
   -H "X-User-ID: user123" \
   -d '{
-    "message": "Hello! Can you teach me how to forge a legendary sword?"
+    "message": "Hello! Can you teach me how to forge a legendary sword?",
+    "game_context": {
+      "location": "Ironhammer Forge",
+      "player_level": 15,
+      "player_inventory": ["iron_ore", "coal"]
+    }
   }'
 ```
 
@@ -130,9 +145,45 @@ curl -X POST http://localhost:8000/api/chat/550e8400-e29b-41d4-a716-446655440000
 ```json
 {
   "conversation_id": "123e4567-e89b-12d3-a456-426614174000",
-  "message": "Aye, welcome to me forge, young apprentice! *wipes soot from hands* Ye want to learn the ancient art of legendary sword forgin', do ye? Well, ye've come to the right place. First things first - do ye have yer materials ready? We'll be needin' Damascus steel, dragon scale powder, and enchanted coal. The process be demandin', but I'll guide ye every step of the way..."
+  "message": "Aye, welcome to me forge, young apprentice! *wipes soot from hands* Ye want to learn the ancient art of legendary sword forgin', do ye? Well, ye've come to the right place. First things first - do ye have yer materials ready? We'll be needin' Damascus steel, dragon scale powder, and enchanted coal. The process be demandin', but I'll guide ye every step of the way...",
+  "audio_file": "/audio/550e8400-e29b-41d4-a716-446655440000_response.wav"
 }
 ```
+
+### Voice Interaction
+
+**Transcribe Speech to Text:**
+```bash
+curl -X POST http://localhost:4020/api/chat/transcribe \
+  -H "X-User-ID: user123" \
+  -F "audio=@recording.wav"
+```
+
+**Response:**
+```json
+{
+  "text": "Hello! Can you teach me how to forge a legendary sword?"
+}
+```
+
+**Text to Speech:**
+```bash
+curl -X POST http://localhost:4020/api/tts \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Welcome to my forge!",
+    "voice_id": "en_US-lessac-medium"
+  }' \
+  --output speech.wav
+```
+
+**Complete Voice Chat Flow:**
+1. Record audio → STT → Transcribed text
+2. Send text to character chat → Get response text
+3. Convert response to speech → TTS → Audio file
+4. Play audio in-game
+
+See [VOICE_CHAT_INTEGRATION.md](VOICE_CHAT_INTEGRATION.md) for complete examples.
 
 ## Unreal Engine Integration
 
@@ -145,7 +196,7 @@ curl -X POST http://localhost:8000/api/chat/550e8400-e29b-41d4-a716-446655440000
 ```cpp
 // Example Blueprint: Create Character
 VaRest Request Node:
-- URL: http://your-server:8000/api/characters
+- URL: http://your-server:4020/api/characters
 - Method: POST
 - Headers:
   - Content-Type: application/json
@@ -161,26 +212,33 @@ VaRest Request Node:
 - Display character name to player
 ```
 
-3. Chat with character:
+3. Chat with character and get voice response:
 
 ```cpp
 // Example Blueprint: Send Message to NPC
 VaRest Request Node:
-- URL: http://your-server:8000/api/chat/{character_id}
+- URL: http://your-server:4020/api/chat/{character_id}
 - Method: POST
 - Headers:
   - Content-Type: application/json
   - X-User-ID: {YourPlayerID}
 - Body:
 {
-  "message": "{PlayerInputText}"
+  "message": "{PlayerInputText}",
+  "game_context": {
+    "location": "Ancient Library",
+    "player_level": 10,
+    "time_of_day": "night"
+  }
 }
 
 // On Success:
-- Get "message" field from JSON
-- Display in dialogue UI
-- (Future) Play TTS audio response
+- Get "message" field for text display
+- Get "audio_file" field for voice playback
+- Download and play audio using Unreal's Sound Wave system
 ```
+
+See [UNREAL_INTEGRATION.md](UNREAL_INTEGRATION.md) and [UNREAL_TTS_INTEGRATION.md](UNREAL_TTS_INTEGRATION.md) for complete integration guides.
 
 ### Example Unreal Blueprint Flow
 
@@ -189,15 +247,17 @@ Player Interacts with NPC
   ↓
 Get Character ID from NPC Actor
   ↓
-Get Player Input (Text or Voice-to-Text)
+Get Player Input (Text or Voice Recording)
   ↓
-HTTP POST to /api/chat/{character_id}
+[If Voice] POST to /api/chat/transcribe → Get Text
   ↓
-Wait for Response
+HTTP POST to /api/chat/{character_id} with game context
+  ↓
+Wait for Response (includes text + audio_file path)
   ↓
 Display Text in Dialogue Widget
   ↓
-(Optional) Play TTS Audio
+Download and Play TTS Audio Response
 ```
 
 ### C++ Integration Example
@@ -214,7 +274,7 @@ public:
     FString CharacterID;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FString ServerURL = "http://localhost:8000";
+    FString ServerURL = "http://localhost:4020";
 
     UFUNCTION(BlueprintCallable)
     void SendMessage(FString Message);
@@ -288,8 +348,10 @@ void UCharacterChatComponent::OnResponseReceived(FHttpRequestPtr Request, FHttpR
 
 ### Base URL
 ```
-http://localhost:8000
+http://localhost:4020
 ```
+
+**Complete API Documentation:** [API_REFERENCE.md](API_REFERENCE.md)
 
 ### Authentication
 Simple header-based auth (for production, implement proper JWT):
@@ -311,12 +373,17 @@ X-User-ID: your_user_identifier
 - `DELETE /api/documents/{document_id}` - Delete document
 
 #### Chat
-- `POST /api/chat/{character_id}` - Send message
+- `POST /api/chat/{character_id}` - Send message (returns text + audio)
 - `GET /api/chat/{conversation_id}/history` - Get chat history
+
+#### Voice
+- `POST /api/chat/transcribe` - Transcribe audio to text (STT)
+- `POST /api/tts` - Convert text to speech (TTS)
+- `GET /api/tts/voices` - List available voices
 
 ### Health Check
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:4020/health
 ```
 
 ## Architecture
@@ -326,24 +393,41 @@ curl http://localhost:8000/health
 │  Unreal Engine  │
 │   VR Client     │
 └────────┬────────┘
-         │ HTTP REST / WebSocket
+         │ HTTP REST
          ↓
-┌─────────────────┐
-│  FastAPI Server │
-│  (Python)       │
-├─────────────────┤
-│ Character Gen   │
-│ Conversation    │
-│ Document Mgmt   │
-└────────┬────────┘
+┌─────────────────────────────────┐
+│     FastAPI Server (Port 4020)  │
+│          (Python)               │
+├─────────────────────────────────┤
+│ • Character Generation          │
+│ • Conversation + Memory (Mem0)  │
+│ • Document Management           │
+│ • Game Context Integration      │
+│ • TTS/STT Orchestration         │
+└────────┬────────────────────────┘
          │
-    ┌────┴────┬─────────┐
-    ↓         ↓         ↓
-┌────────┐ ┌──────┐ ┌──────────┐
-│Postgres│ │Ollama│ │OpenRouter│
-│  DB    │ │ LLM  │ │   API    │
-└────────┘ └──────┘ └──────────┘
+    ┌────┴────┬─────────┬──────────┬──────────┐
+    ↓         ↓         ↓          ↓          ↓
+┌────────┐ ┌──────┐ ┌──────────┐ ┌──────┐ ┌────────┐
+│Postgres│ │Redis │ │  Ollama  │ │Piper │ │Whisper │
+│ (Data) │ │(Cache)│ │   LLM    │ │ TTS  │ │  STT   │
+└────────┘ └──────┘ └──────────┘ └──────┘ └────────┘
+                         │
+                         ↓
+                    ┌──────────┐
+                    │OpenRouter│
+                    │   API    │
+                    └──────────┘
 ```
+
+**Services:**
+- **Backend (Port 4020)**: FastAPI application handling all logic
+- **PostgreSQL**: Character data, conversations, documents
+- **Redis**: Caching and session management
+- **Piper TTS (Port 10200)**: Local text-to-speech via Wyoming protocol
+- **Whisper STT (Port 10300)**: Local speech-to-text via Wyoming protocol
+- **Ollama (Host:11434)**: Optional local LLM inference
+- **OpenRouter**: Optional cloud LLM API
 
 ## Database Schema
 
@@ -396,7 +480,10 @@ See [.env.example](.env.example) for all options.
 
 ## Roadmap
 
-- [ ] Text-to-Speech (Piper) integration
+- [x] Text-to-Speech (Piper) integration ✅
+- [x] Speech-to-Text (Whisper) integration ✅
+- [x] Universal audio format support (FFmpeg) ✅
+- [x] Game context integration ✅
 - [ ] WebSocket real-time chat
 - [ ] Voice activity detection
 - [ ] Character emotion/animation hints
@@ -404,6 +491,17 @@ See [.env.example](.env.example) for all options.
 - [ ] Character personality evolution
 - [ ] Vector database for better document search
 - [ ] Unreal Engine plugin (C++)
+
+## Documentation
+
+- [API Reference](API_REFERENCE.md) - Complete API documentation with examples
+- [Unreal Integration](UNREAL_INTEGRATION.md) - Integrate with Unreal Engine
+- [Voice Chat Integration](VOICE_CHAT_INTEGRATION.md) - Complete voice chat workflow
+- [TTS Quick Start](TTS_QUICK_START.md) - Text-to-speech guide
+- [STT Quick Reference](STT_API_QUICK_REFERENCE.md) - Speech-to-text API guide
+- [Game Context Guide](GAME_CONTEXT_GUIDE.md) - Pass game state to characters
+- [Memory System](MEMORY_SYSTEM.md) - How character memory works
+- [Web UI Guide](WEB_UI_GUIDE.md) - Using the web interface
 
 ## License
 

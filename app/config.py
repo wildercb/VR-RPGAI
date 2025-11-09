@@ -1,5 +1,5 @@
 """Application configuration management."""
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 
 
@@ -31,14 +31,22 @@ class Settings(BaseSettings):
 
     # Mem0 Memory Configuration
     MEM0_LLM_PROVIDER: str = "ollama"  # "ollama" or "openrouter"
-    MEM0_LLM_MODEL: str = "llama3.1"
+    MEM0_MODEL: str = "granite4:micro"  # Model for memory extraction
     MEM0_ENABLE_MEMORY: bool = True  # Enable/disable memory system
 
     # TTS Configuration
+    TTS_ENABLED: bool = True  # Enable/disable TTS
     TTS_PROVIDER: str = "piper"
-    PIPER_MODEL_PATH: str = "/app/tts_models"
+    PIPER_TTS_URL: str = "http://piper:10200"  # Piper TTS service URL
     PIPER_DEFAULT_VOICE: str = "en_US-lessac-medium"
     AUDIO_CACHE_PATH: str = "/app/audio_cache"
+
+    # STT Configuration
+    STT_ENABLED: bool = True  # Enable/disable STT
+    STT_PROVIDER: str = "whisper"
+    WHISPER_STT_URL: str = "http://whisper:10300"  # Whisper STT service URL
+    WHISPER_MODEL: str = "base-int8"  # Whisper model (tiny, base, small, medium, large-v3)
+    WHISPER_LANGUAGE: str = "en"  # Language code for transcription
 
     # Security
     SECRET_KEY: str = "change-this-secret-key-in-production"
@@ -48,9 +56,7 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
 
 settings = Settings()

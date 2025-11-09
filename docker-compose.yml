@@ -30,6 +30,30 @@ services:
       timeout: 3s
       retries: 5
 
+  piper:
+    image: rhasspy/wyoming-piper:latest
+    container_name: rpgai-piper
+    ports:
+      - "10200:10200"
+    volumes:
+      - piper_data:/data
+    # Change the voice here - visit https://rhasspy.github.io/piper-samples/ for options
+    # Popular options: en_US-amy-medium, en_US-danny-low, en_US-joe-medium, en_GB-alan-medium
+    command: --voice en_US-lessac-medium
+    restart: unless-stopped
+
+  whisper:
+    image: rhasspy/wyoming-whisper:latest
+    container_name: rpgai-whisper
+    ports:
+      - "10300:10300"
+    volumes:
+      - whisper_data:/data
+    # Models: tiny, base, small, medium, large-v3 (larger = more accurate, slower)
+    # tiny-int8 and base-int8 are quantized for speed
+    command: --model base-int8 --language en
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -46,6 +70,18 @@ services:
       - DATABASE_NAME=rpgai
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - DEBUG=true
+      - TTS_ENABLED=true
+      - TTS_PROVIDER=piper
+      - PIPER_TTS_URL=http://piper:10200
+      - PIPER_DEFAULT_VOICE=en_US-lessac-medium
+      - AUDIO_CACHE_PATH=/app/audio_cache
+      - STT_ENABLED=true
+      - STT_PROVIDER=whisper
+      - WHISPER_STT_URL=http://whisper:10300
+      - WHISPER_MODEL=base-int8
+      - WHISPER_LANGUAGE=en
+      - MEM0_MODEL=granite4:micro
+      - MEM0_ENABLE_MEMORY=true
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -63,3 +99,5 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  piper_data:
+  whisper_data:
